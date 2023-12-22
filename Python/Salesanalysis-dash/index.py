@@ -28,7 +28,7 @@ main_config = {
     "margin": {"l": 10, "r": 10, "t":10, "b": 10}
 }
 
-config_graph={"displayModBar": False, "showTips": False}
+config_graph={"displayModeBar": False, "showTips": False}
 
 template_theme1 = "flatly"
 template_theme2 = "darkly"
@@ -76,6 +76,26 @@ for i in df['Equipe'].unique():
     options_team.append({'label': i, 'value': i})
     
     
+# =============== Função dos Filtros ================= #
+def month_filter(month):
+    if month == 0:
+        mask = df['Mês'].isin(df['Mês'].unique())
+    else:
+        mask = df['Mês'].isin([month])
+    return mask 
+
+def convert_to_text(month):
+    lista1 = ['Ano todo', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+    return lista1[month]
+
+def team_filter(team):
+    if team == 0:
+        mask = df['Equipe'].isin(df['Equipe'].unique())
+    else:
+        mask = df['Equipe'].isin([team])
+    return mask
+
+
 # ===================== Layout ======================= #
 app.layout = dbc.Container(children=[
     # Row 1
@@ -151,7 +171,7 @@ app.layout = dbc.Container(children=[
                 dbc.Col([
                     dbc.Card([
                         dbc.CardBody([
-                            dcc.Graph(id='grph3', className='dbc', config=config_graph)
+                            dcc.Graph(id='graph3', className='dbc', config=config_graph)
                         ])
                     ], style=tab_card)
                 ])
@@ -196,14 +216,117 @@ app.layout = dbc.Container(children=[
                 dcc.Graph(id='graph8', className='dbc', config=config_graph)
             ], style=tab_card)
         ], sm=12, lg=3)
-    ], className='g-2 my-auto', style={'margin-top': '7px'})
+    ], className='g-2 my-auto', style={'margin-top': '7px'}),
     
+    # ROW 3
+    dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    html.H4('Distribuição de Propaganda'),
+                    dcc.Graph(id='graph9', className='dbc', config=config_graph)
+                ])
+            ], style=tab_card)
+        ], sm=12, lg=2),
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    html.H4("Valores de Propaganda convertidos por mês"),
+                    dcc.Graph(id='graph10', className='dbc', config=config_graph)
+                ])
+            ], style=tab_card)
+        ], sm=12, lg=5),
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    dcc.Graph(id='graph11', className='dbc', config=config_graph)
+                ])
+            ], style=tab_card)
+        ], sm=12, lg=3),
+        dbc.Col([
+            dbc.Card([
+                dbc.CardBody([
+                    html.H5('Escolha a Equipe'),
+                    dbc.RadioItems(
+                        id="radio-team",
+                        options=options_team,
+                        value=0,
+                        inline=True,
+                        labelCheckedClassName="text-warning",
+                        inputCheckedClassName="border border-warning bg-warning",
+                    ),
+                    html.Div(id='team-select', style={'text-align': 'center', 'margin-top': '30px'}, className='dbc')
+                ])
+            ], style=tab_card)
+        ], sm=12, lg=2),
+    ], className='g-2 my-auto', style={'margin-top': '7px'})      
 ], fluid=True, style={'height': '100vh'})
 
 
 # ==================== Callbacks ===================== #
+# Graph 1 and 2
+@app.callback(
+    Output('graph1', 'figure'),
+    Output('graph2', 'figure'),
+    Output('month-select', 'children'),
+    Input('radio-month', 'value'),
+    Input(ThemeSwitchAIO.ids.switch("theme"), "value")
+)
+def graph1(month, toggle):
+    template = template_theme1 if toggle else template_theme2
+    
+    mask = month_filter(month)
+    df_1 = df.loc[mask]
+    
+    df_1 = df_1.groupby(['Equipe', 'Consultor'])['Valor Pago'].sum()
+    df_1 = df_1.sort_values(ascending = False)
+    df_1 = df_1.groupby('Equipe').head(1).reset_index()
+    
+    fig2 = go.Figure(go.Pie(labels=df_1['Consultor'] + ' - ' + df_1['Equipe'], values=df_1['Valor Pago'], hole=.6))
+    fig1 = go.Figure(go.Bar(x=df_1['Consultor'], y=df_1['Valor Pago'], textposition='auto', text=df_1['Valor Pago']))
+    
+    fig1.update_layout(main_config, height=200, template=template)
+    fig2.update_layout(main_config, height=200, template=template, showlegend=False)
+    
+    select = html.H1(convert_to_text(month))
+    
+    return fig1, fig2, select
 
+# Graph 3
+@app.callback(
+    Output('graph3', 'figure'),
+    Input('radio-team', 'value'),
+    Input(ThemeSwitchAIO.ids.switch("theme"), "value")    
+)
+def graph3(team, toggle):
+    template = template_theme1 if toggle else template_theme2
 
+    mask = team_filter(team)
+    df_3 = df.loc[mask]
+
+    df_3 = df_3.groupby('Dia')['Chamadas Realizadas'].sum().reset_index()
+    fig3 = go.Figure(go.Scatter(
+    x=df_3['Dia'], y=df_3['Chamadas Realizadas'], mode='lines', fill='tonexty'))
+    fig3.add_annotation(text='Chamadas Médias por dia do Mês',
+        xref="paper", yref="paper",
+        font=dict(
+            size=17,
+            color='gray'
+            ),
+        align="center", bgcolor="rgba(0,0,0,0.8)",
+        x=0.05, y=0.85, showarrow=False)
+    fig3.add_annotation(text=f"Média : {round(df_3['Chamadas Realizadas'].mean(), 2)}",
+        xref="paper", yref="paper",
+        font=dict(
+            size=20,
+            color='gray'
+            ),
+        align="center", bgcolor="rgba(0,0,0,0.8)",
+        x=0.05, y=0.55, showarrow=False)
+
+    fig3.update_layout(main_config, height=180, template=template)
+    return fig3
+    
 # Run server
 
 if __name__ == '__main__':

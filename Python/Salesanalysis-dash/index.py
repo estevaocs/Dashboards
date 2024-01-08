@@ -519,4 +519,5 @@ def graph11(month, team, toggle):
 # Run server
 
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8050)
+    port = init(os.getenv('PORT'), '5000')
+    app.run(host='0.0.0.0', port=port)
